@@ -1185,14 +1185,6 @@ func NewTestCluster(t testing.T, base *CoreConfig, opts *TestClusterOptions) *Te
 		certIPs = append(certIPs, baseAddr.IP)
 	}
 
-	baseClusterListenPort := 0
-	if opts != nil && opts.BaseClusterListenPort != 0 {
-		if opts.BaseListenAddress == "" {
-			t.Fatal("BaseListenAddress is not specified")
-		}
-		baseClusterListenPort = opts.BaseClusterListenPort
-	}
-
 	var testCluster TestCluster
 
 	switch {
@@ -1553,30 +1545,9 @@ func NewTestCluster(t testing.T, base *CoreConfig, opts *TestClusterOptions) *Te
 		}
 	}
 
-	//
 	// Clustering setup
-	//
-	clusterAddrGen := func(lns []*TestListener, port int) []*net.TCPAddr {
-		ret := make([]*net.TCPAddr, len(lns))
-		for i, ln := range lns {
-			ret[i] = &net.TCPAddr{
-				IP:   ln.Address.IP,
-				Port: port,
-			}
-		}
-		return ret
-	}
-
 	for i := 0; i < numCores; i++ {
-		if coreConfigs[i].ClusterAddr != "" {
-			port := 0
-			if baseClusterListenPort != 0 {
-				port = baseClusterListenPort + i
-			}
-			cores[i].Logger().Info("assigning cluster listener for test core", "core", i, "port", port)
-			cores[i].SetClusterListenerAddrs(clusterAddrGen(listeners[i], port))
-			cores[i].SetClusterHandler(handlers[i])
-		}
+		setupClusterAddress(t, i, cores[i], coreConfigs[i], opts, listeners[i], handlers[i])
 	}
 
 	if opts == nil || !opts.SkipInit {
@@ -1817,12 +1788,8 @@ func NewTestCluster(t testing.T, base *CoreConfig, opts *TestClusterOptions) *Te
 }
 
 func (cluster *TestCluster) newCore(
-	t testing.T,
-	idx int,
-	coreConfig *CoreConfig,
-	opts *TestClusterOptions,
-	listeners []*TestListener,
-	pubKey interface{},
+	t testing.T, idx int, coreConfig *CoreConfig,
+	opts *TestClusterOptions, listeners []*TestListener, pubKey interface{},
 ) (func(), *Core, CoreConfig, http.Handler) {
 
 	localConfig := *coreConfig
@@ -1915,6 +1882,42 @@ func (cluster *TestCluster) newCore(
 	}
 
 	return cleanupFunc, c, localConfig, handler
+}
+
+func setupClusterAddress(
+	t testing.T, idx int, core *Core, coreConfig *CoreConfig,
+	opts *TestClusterOptions, listeners []*TestListener, handler http.Handler) {
+
+	if coreConfig.ClusterAddr == "" {
+		return
+	}
+
+	clusterAddrGen := func(lns []*TestListener, port int) []*net.TCPAddr {
+		ret := make([]*net.TCPAddr, len(lns))
+		for i, ln := range lns {
+			ret[i] = &net.TCPAddr{
+				IP:   ln.Address.IP,
+				Port: port,
+			}
+		}
+		return ret
+	}
+
+	baseClusterListenPort := 0
+	if opts != nil && opts.BaseClusterListenPort != 0 {
+		if opts.BaseListenAddress == "" {
+			t.Fatal("BaseListenAddress is not specified")
+		}
+		baseClusterListenPort = opts.BaseClusterListenPort
+	}
+
+	port := 0
+	if baseClusterListenPort != 0 {
+		port = baseClusterListenPort + idx
+	}
+	core.Logger().Info("assigning cluster listener for test core", "core", idx, "port", port)
+	core.SetClusterListenerAddrs(clusterAddrGen(listeners, port))
+	core.SetClusterHandler(handler)
 }
 
 func NewMockBuiltinRegistry() *mockBuiltinRegistry {
