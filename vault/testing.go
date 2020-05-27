@@ -1541,8 +1541,7 @@ func NewTestCluster(t testing.T, base *CoreConfig, opts *TestClusterOptions) *Te
 	coreConfigs := []*CoreConfig{}
 
 	for i := 0; i < numCores; i++ {
-		port := listeners[i][0].Address.Port
-		cleanup, c, localConfig, handler := testCluster.newCore(t, i, coreConfig, opts, port, pubKey)
+		cleanup, c, localConfig, handler := testCluster.newCore(t, i, coreConfig, opts, listeners[i], pubKey)
 
 		cleanupFuncs = append(cleanupFuncs, cleanup)
 		cores = append(cores, c)
@@ -1822,7 +1821,7 @@ func (cluster *TestCluster) newCore(
 	idx int,
 	coreConfig *CoreConfig,
 	opts *TestClusterOptions,
-	port int,
+	listeners []*TestListener,
 	pubKey interface{},
 ) (func(), *Core, CoreConfig, http.Handler) {
 
@@ -1840,7 +1839,7 @@ func (cluster *TestCluster) newCore(
 		firstCoreNumber = opts.FirstCoreNumber
 	}
 
-	localConfig.RedirectAddr = fmt.Sprintf("https://127.0.0.1:%d", port)
+	localConfig.RedirectAddr = fmt.Sprintf("https://127.0.0.1:%d", listeners[0].Address.Port)
 
 	// if opts.SealFunc is provided, use that to generate a seal for the config instead
 	if opts != nil && opts.SealFunc != nil {
