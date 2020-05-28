@@ -930,7 +930,14 @@ func (c *TestClusterCore) Seal(t testing.T) {
 	}
 }
 
-func (c *TestClusterCore) Shutdown() error {
+func (c *TestClusterCore) Cleanup(t testing.T) {
+	t.Helper()
+	if err := c.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (c *TestClusterCore) cleanup() error {
 	if c.Listeners != nil {
 		for _, ln := range c.Listeners {
 			ln.Close()
@@ -982,8 +989,8 @@ func (c *TestCluster) Cleanup() {
 
 		go func() {
 			defer wg.Done()
-			if err := lc.Shutdown(); err != nil {
-				lc.Logger().Error("error during shutdown; abandoning sealing", "error", err)
+			if err := lc.cleanup(); err != nil {
+				lc.Logger().Error("error during cleanup", "error", err)
 			}
 		}()
 	}
